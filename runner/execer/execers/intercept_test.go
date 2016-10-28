@@ -17,12 +17,10 @@ func TestInterceptor(t *testing.T) {
 	}
 
 	// block1 will block on wg1; block2 on wg2
-	block1 := execer.Command{
-		Argv: []string{UseSimExecerArg, "pause", "complete 0"},
-	}
-	block2 := execer.Command{
-		Argv: []string{"pause", "complete 0"},
-	}
+	block1 := ExecerCommandWithWaitGroup{}
+	block1.Argv = []string{UseSimExecerArg, "pause", "complete 0"}
+	block2 := ExecerCommandWithWaitGroup{}
+	block2.Argv = []string{"pause", "complete 0"}
 
 	wg2.Add(1)
 	p, err := ex.Exec(block1)

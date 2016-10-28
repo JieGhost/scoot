@@ -49,7 +49,7 @@ func (r *ChaosRunner) delay() error {
 }
 
 // Implement Runner
-func (r *ChaosRunner) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
+func (r *ChaosRunner) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 	err := r.delay()
 	if err != nil {
 		return runner.ProcessStatus{}, err

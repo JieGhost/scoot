@@ -39,7 +39,7 @@ type PollingWorker struct {
 
 func (r *PollingWorker) RunAndWait(task sched.TaskDefinition) (runner.ProcessStatus, error) {
 	// schedule the task
-	status, err := r.runner.Run(&task.Command)
+	status, err := r.runner.Run(task.Command)
 	if err != nil {
 		return status, err
 	}

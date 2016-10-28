@@ -102,11 +102,11 @@ func (c *conn) Echo(arg string) (string, error) {
 	return r.Pong, nil
 }
 
-func (c *conn) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
+func (c *conn) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 	req := &protocol.Command{}
-	req.Argv = cmd.Argv
-	req.Env = cmd.EnvVars
-	req.Timeout = int64(cmd.Timeout)
+	req.Argv = cmd.(runner.Command).Argv
+	req.Env = cmd.(runner.Command).EnvVars
+	req.Timeout = int64(cmd.(runner.Command).Timeout)
 
 	r, err := c.client.Run(context.Background(), req)
 	if err != nil {

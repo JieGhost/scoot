@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/scootdev/scoot/runner"
 	"github.com/scootdev/scoot/runner/execer"
 )
 
@@ -14,6 +15,19 @@ func NewExecer() execer.Execer {
 }
 
 type osExecer struct{}
+
+func (osExecer) GetArv() []string {
+	return nil
+}
+
+func (e osExecer) MakeExecerCommand(runnerCommand runner.CommandI, dir string, stdout, stderr io.Writer) execer.CommandI {
+	execerCommand := execer.Command{}
+	execerCommand.Argv = runnerCommand.GetArgv()
+	execerCommand.Dir = dir
+	execerCommand.Stdout = stdout
+	execerCommand.Stderr = stderr
+	return execerCommand
+}
 
 type WriterDelegater interface {
 	// Return an underlying Writer. Why? Because some methods type assert to
@@ -24,7 +38,8 @@ type WriterDelegater interface {
 	WriterDelegate() io.Writer
 }
 
-func (e *osExecer) Exec(command execer.Command) (result execer.Process, err error) {
+func (e *osExecer) Exec(param execer.CommandI) (result execer.Process, err error) {
+	command, _ := param.(execer.Command)
 	if len(command.Argv) == 0 {
 		return nil, errors.New("No command specified.")
 	}

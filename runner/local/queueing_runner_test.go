@@ -43,22 +43,22 @@ func TestQueueing2Messages(t *testing.T) {
 	testEnv.waitGroup.Add(1) // set the pause condition
 
 	// send the first command - it should pause
-	run1, _ := validateRunRequest("1st Run()", []string{"pause", "complete 0"}, []runner.ProcessState{runner.PENDING}, "", qr, t)
+	run1, _ := assertQueuedRun("1st Run()", []string{"pause", "complete 0"}, nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 
 	// send a second command
-	run2, _ := validateRunRequest("2nd Run()", []string{"complete 1"}, []runner.ProcessState{runner.PENDING}, "", qr, t)
+	run2, _ := assertQueuedRun("2nd Run()", []string{"complete 1"}, nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 
 	// get the status of the first command - it should be running or preparing
-	waitForStatus("1st run running:", run1.RunId, []runner.ProcessState{runner.RUNNING}, 10*time.Millisecond, qr, t)
+	waitForStatus("1st run running:", run1.RunId, []runner.ProcessState{runner.RUNNING}, 10*time.Millisecond, true, qr, t)
 	//expectedStates1 := []runner.ProcessState{runner.RUNNING, runner.PREPARING}
 	//validateStatus("1st Status():", run1.RunId, "", expectedStates1, qr, t)
 
 	// get the status of the second command - it should be pending
-	validateStatus("2nd Status() when blocked:", run2.RunId, "", []runner.ProcessState{runner.PENDING}, qr, t)
+	assertQueueStatus("2nd Status() when blocked:", run2.RunId, "", []runner.ProcessState{runner.PENDING}, qr, t)
 
 	testEnv.waitGroup.Done() // send signal to end first (paused) request
 
-	waitForStatus("2nd run complete:", run2.RunId, []runner.ProcessState{runner.COMPLETE}, 10*time.Millisecond, qr, t)
+	waitForStatus("2nd run complete:", run2.RunId, []runner.ProcessState{runner.COMPLETE}, 10*time.Millisecond, true, qr, t)
 }
 
 // this test has the following phases:
@@ -86,38 +86,38 @@ func TestQueueingMoreThanMaxMessage(t *testing.T) {
 
 	// phase1: -----------------fill up the queue and send one extra overflow request
 	args[0] = []string{"pause", "complete 0"} // send the first command - it should pause
-	validateRunRequest("phase1, 1st Run():", args[0], []runner.ProcessState{runner.PENDING}, "", qr, t)
-	waitForStatus("phase1, wait for first run running:", runner.RunId("0"), []runner.ProcessState{runner.RUNNING}, 10*time.Millisecond, qr, t)
+	assertQueuedRun("phase1, 1st Run():", args[0], nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
+	waitForStatus("phase1, wait for first run running:", runner.RunId("0"), []runner.ProcessState{runner.RUNNING}, 10*time.Millisecond, true, qr, t)
 
 	// send commands to fill up the queue
 	for i := 1; i < 5; i++ {
 		// send a second command
 		args[i] = []string{"complete " + strconv.Itoa(i)}
 		tag := fmt.Sprintf("phase1, Run() %d:", i)
-		validateRunRequest(tag, args[i], []runner.ProcessState{runner.PENDING}, "", qr, t)
+		assertQueuedRun(tag, args[i], nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 	}
 
 	// wait for the requests to be placed on the queue
-	waitForStatus("phase1, wait for 4th run pending:", runner.RunId("4"), []runner.ProcessState{runner.PENDING}, 10*time.Millisecond, qr, t)
+	waitForStatus("phase1, wait for 4th run pending:", runner.RunId("4"), []runner.ProcessState{runner.PENDING}, 10*time.Millisecond, true, qr, t)
 
 	// validate other runs are all pending
 	for i := 1; i < 4; i++ {
 		tag := fmt.Sprintf("phase1, Status() %d when blocked:", i)
-		validateStatus(tag, runner.RunId(strconv.Itoa(i)), "", []runner.ProcessState{runner.PENDING}, qr, t)
+		assertQueueStatus(tag, runner.RunId(strconv.Itoa(i)), "", []runner.ProcessState{runner.PENDING}, qr, t)
 
 	}
 
 	// send command that can't fit on the queue
 	args[5] = []string{"complete 5"}
-	validateRunRequest("phase1, overflow request:", args[5], []runner.ProcessState{runner.FAILED}, QueueFullMsg, qr, t)
+	assertQueuedRun("phase1, overflow request:", args[5], nil, []runner.ProcessState{runner.FAILED}, QueueFullMsg, qr, t)
 
 	// phase2: -----------unpause the first run and let the queue empty
 	testEnv.waitGroup.Done() // unpause the first command so the queue will be emptied
 
 	// wait for the first run to complete
-	waitForStatus("phase2, wait for 1st run complete:", runner.RunId("0"), []runner.ProcessState{runner.COMPLETE}, 2*time.Millisecond, qr, t)
+	waitForStatus("phase2, wait for 1st run complete:", runner.RunId("0"), []runner.ProcessState{runner.COMPLETE}, 2*time.Millisecond, true, qr, t)
 	// wait for the requests to be placed on the queue
-	waitForStatus("phase2, wiat for 4th run complete:", runner.RunId("4"), []runner.ProcessState{runner.COMPLETE}, 10*time.Millisecond, qr, t)
+	waitForStatus("phase2, wait for 4th run complete:", runner.RunId("4"), []runner.ProcessState{runner.COMPLETE}, 10*time.Millisecond, true, qr, t)
 
 	// phase 3: ----------- verify runids
 	// validate that runids only go up to 4 (0th run started immediately, then queue held 1-4)
@@ -125,25 +125,25 @@ func TestQueueingMoreThanMaxMessage(t *testing.T) {
 
 	// phase 4: ------------refill the queue and send one extra overflow request
 	testEnv.waitGroup.Add(1)
-	validateRunRequest("phase4, 1st Run():", args[0], []runner.ProcessState{runner.PENDING}, "", qr, t)
-	waitForStatus("phase4, wait for 1st run running:", runner.RunId("5"), []runner.ProcessState{runner.RUNNING}, 2*time.Millisecond, qr, t)
+	assertQueuedRun("phase4, 1st Run():", args[0], nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
+	waitForStatus("phase4, wait for 1st run running:", runner.RunId("5"), []runner.ProcessState{runner.RUNNING}, 2*time.Millisecond, true, qr, t)
 
 	for i := 1; i < 5; i++ {
 		tag := fmt.Sprintf("phase4, Run() %d:", i+6)
-		validateRunRequest(tag, args[i], []runner.ProcessState{runner.PENDING}, "", qr, t)
+		assertQueuedRun(tag, args[i], nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 	}
 
 	// send command that can't fit on the queue
 	args[5] = []string{"complete 5"}
-	validateRunRequest("phase4, overflow request", args[5], []runner.ProcessState{runner.FAILED}, QueueFullMsg, qr, t)
+	assertQueuedRun("phase4, overflow request", args[5], nil, []runner.ProcessState{runner.FAILED}, QueueFullMsg, qr, t)
 
 	// phase 5: ------------- unpause and let the queue empty again
 	testEnv.waitGroup.Done() // let the paused run continue
 
 	// wait for the 5th run (first run in second set) to complete
-	waitForStatus("phase5, wait for 1st run complete:", runner.RunId("5"), []runner.ProcessState{runner.COMPLETE}, 2*time.Millisecond, qr, t)
+	waitForStatus("phase5, wait for 1st run complete:", runner.RunId("5"), []runner.ProcessState{runner.COMPLETE}, 2*time.Millisecond, true, qr, t)
 
-	waitForStatus("phase5, wait for 4th run complete:", runner.RunId("9"), []runner.ProcessState{runner.COMPLETE}, 10*time.Millisecond, qr, t)
+	waitForStatus("phase5, wait for 4th run complete:", runner.RunId("9"), []runner.ProcessState{runner.COMPLETE}, 10*time.Millisecond, true, qr, t)
 
 	// phase 6: ------------- validate that the runids only go to 9
 	validateRunIds("phase 6", 9, qr, t)
@@ -153,10 +153,10 @@ func TestQueueingMoreThanMaxMessage(t *testing.T) {
 func validateRunIds(tagPrefix string, maxRunId int, qr *QueueingRunner, t *testing.T) {
 	for i := 0; i <= maxRunId; i++ {
 		tag := fmt.Sprintf("%s Status() %d, runid check", tagPrefix, i)
-		validateStatus(tag, runner.RunId(strconv.Itoa(i)), "", []runner.ProcessState{runner.COMPLETE}, qr, t)
+		assertQueueStatus(tag, runner.RunId(strconv.Itoa(i)), "", []runner.ProcessState{runner.COMPLETE}, qr, t)
 	}
 	tag := fmt.Sprintf("%s RunId %d should not exist", tagPrefix, maxRunId+1)
-	validateStatus(tag, runner.RunId(maxRunId+1), "", []runner.ProcessState{runner.BADREQUEST}, qr, t)
+	assertQueueStatus(tag, runner.RunId(maxRunId+1), "", []runner.ProcessState{runner.BADREQUEST}, qr, t)
 }
 
 func TestUnknownRunIdInStatusRequest(t *testing.T) {
@@ -175,17 +175,17 @@ func TestUnknownRunIdInStatusRequest(t *testing.T) {
 	testEnv.waitGroup.Add(1)
 	var args [6][]string
 	args[0] = []string{"pause", "complete 0"}
-	validateRunRequest("1st Run():", args[0], []runner.ProcessState{runner.PENDING}, "", qr, t)
+	assertQueuedRun("1st Run():", args[0], nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 
 	for i := 1; i < 3; i++ {
 		// send a second command
 		args[i] = []string{"complete " + strconv.Itoa(i)}
 		tag := fmt.Sprintf("Run() %d:", i+6)
-		validateRunRequest(tag, args[i], []runner.ProcessState{runner.PENDING}, "", qr, t)
+		assertQueuedRun(tag, args[i], nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 	}
 
 	expectedStatus := []runner.ProcessState{runner.BADREQUEST}
-	processStatus := validateStatus("unknown runID:", "badRunId", "", expectedStatus, qr, t)
+	processStatus := assertQueueStatus("unknown runID:", "badRunId", "", expectedStatus, qr, t)
 	if strings.Compare(UnknownRunIdMsg, processStatus.Error) != 0 || strings.Compare("badRunId", string(processStatus.RunId)) != 0 {
 		t.Fatalf("Expected '%s' message or '%s' runid, got '%s' message and '%s' runid", UnknownRunIdMsg, "badRunId", processStatus.Error, string(processStatus.RunId))
 	}
@@ -203,14 +203,18 @@ func TestRunnerReturningAnErrorOnRunRequest(t *testing.T) {
 	qr := NewQueuingRunner(ctx, testEnv.commandRunner, 4, nil).(*QueueingRunner)
 
 	// send the first command telling sim execer to pause
-	status, _ := validateRunRequest("Run():", []string{"Command:", "Run", "return", "error", "test"}, []runner.ProcessState{runner.PENDING}, "", qr, t)
+	status, _ := assertQueuedRun("Run():", []string{"Command:", "Run", "return", "error", "test"}, nil, []runner.ProcessState{runner.PENDING}, "", qr, t)
 	time.Sleep(2 * time.Millisecond)
-	validateStatus("Status():", status.RunId, errorMsgFromRunner, []runner.ProcessState{runner.BADREQUEST}, qr, t)
+	assertQueueStatus("Status():", status.RunId, errorMsgFromRunner, []runner.ProcessState{runner.BADREQUEST}, qr, t)
 }
 
-func validateRunRequest(tag string, args []string, expectedStates []runner.ProcessState, expectedErrorClause string, qr *QueueingRunner, t *testing.T) (runner.ProcessStatus, error) {
-	cmd := &runner.Command{Argv: args[:], Timeout: 30 * time.Second}
-	status, err := qr.Run(cmd)
+func assertQueuedRun(tag string, args []string, cmdWG *sync.WaitGroup, expectedStates []runner.ProcessState, expectedErrorClause string, qr *QueueingRunner, t *testing.T) (runner.ProcessStatus, error) {
+	runnerCommand := runner.RunnerCommandWithWaitGroup{}
+	runnerCommand.Argv = args[:]
+	runnerCommand.Timeout = 3 * time.Second
+	runnerCommand.Wait = cmdWG
+
+	status, err := qr.Run(runnerCommand)
 	if err != nil && !strings.Contains(err.Error(), expectedErrorClause) {
 		t.Fatalf("%s:Run request %v. Expected error:'%s', got error: '%s'\n", tag, args, expectedErrorClause, err.Error())
 	}
@@ -230,7 +234,7 @@ func validateRunRequest(tag string, args []string, expectedStates []runner.Proce
 	return status, err
 }
 
-func validateStatus(tag string, runId runner.RunId, expectedErrorClause string, expectedStates []runner.ProcessState, qr *QueueingRunner, t *testing.T) runner.ProcessStatus {
+func assertQueueStatus(tag string, runId runner.RunId, expectedErrorClause string, expectedStates []runner.ProcessState, qr *QueueingRunner, t *testing.T) runner.ProcessStatus {
 	status, err := qr.Status(runId)
 	if err != nil && !strings.Contains(err.Error(), expectedErrorClause) {
 		t.Fatalf("%s:Status request error for runId:'%s'. expected nil got: '%s'\n", tag, string(runId), err.Error())
@@ -259,13 +263,17 @@ func doesMatchState(statesToMatch []runner.ProcessState, status runner.ProcessSt
 }
 
 //TODO - use poll when it becomes available
-func waitForStatus(tag string, runId runner.RunId, allowedStates []runner.ProcessState, maxWait time.Duration, qr *QueueingRunner, t *testing.T) (runner.ProcessStatus, error) {
+func waitForStatus(tag string, runId runner.RunId, allowedStates []runner.ProcessState, maxWait time.Duration, fatalOnExpire bool, qr *QueueingRunner, t *testing.T) (runner.ProcessStatus, error) {
 	startWait := time.Now()
 
 	for {
 		status, err := qr.Status(runId)
 		if err != nil {
-			t.Fatalf("%s got error:%s, expected nil", tag, err.Error())
+			if fatalOnExpire {
+				t.Fatalf("%s got error:%s, expected nil", tag, err.Error())
+			} else {
+				return runner.ProcessStatus{}, fmt.Errorf("wait expired")
+			}
 		}
 		if doesMatchState(allowedStates, status) {
 			return status, nil
@@ -318,7 +326,7 @@ func teardown(testEnv *testEnv) {
 
 type fakeRunner struct{}
 
-func (er *fakeRunner) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
+func (er *fakeRunner) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 	return runner.ProcessStatus{}, fmt.Errorf(errorMsgFromRunner)
 }
 

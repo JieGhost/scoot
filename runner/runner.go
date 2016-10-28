@@ -6,8 +6,13 @@ import (
 	"time"
 )
 
-const NoRunnersMsg = "No runners available."
 const RunnerBusyMsg = "Runner is busy"
+
+type CommandI interface {
+	GetTimeout() time.Duration
+	GetSnapshotId() string
+	GetArgv() []string
+}
 
 // A command, execution environment, and timeout.
 type Command struct {
@@ -23,6 +28,16 @@ type Command struct {
 	// Runner can optionally use this to run against a particular snapshot. Empty value is ignored.
 	//TODO: plumb this through.
 	SnapshotId string
+}
+
+func (c Command) GetTimeout() time.Duration {
+	return c.Timeout
+}
+func (c Command) GetSnapshotId() string {
+	return c.SnapshotId
+}
+func (c Command) GetArgv() []string {
+	return c.Argv
 }
 
 func (c Command) String() string {
@@ -54,7 +69,7 @@ type Runner interface {
 	// check if cmd is well-formed, and reject it if not (leading to state FAILED)
 	// wait a very short period of time for cmd to finish
 	// Run may not wait indefinitely for cmd to finish. This is an async API.
-	Run(cmd *Command) (ProcessStatus, error)
+	Run(cmd CommandI) (ProcessStatus, error)
 
 	// Status checks the status of run.
 	Status(run RunId) (ProcessStatus, error)

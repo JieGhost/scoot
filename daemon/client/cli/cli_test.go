@@ -72,7 +72,7 @@ func (c *fakeConn) Echo(arg string) (string, error) {
 	return arg, nil
 }
 
-func (c *fakeConn) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
+func (c *fakeConn) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 	if c.err != nil {
 		return runner.ProcessStatus{}, c.err
 	}

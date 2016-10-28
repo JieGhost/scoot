@@ -139,7 +139,7 @@ func assertStatus(t *testing.T, actual runner.ProcessStatus, expected runner.Pro
 }
 
 func run(t *testing.T, r runner.Runner, args []string) runner.RunId {
-	cmd := &runner.Command{}
+	cmd := runner.RunnerCommandWithWaitGroup{}
 	cmd.Argv = args
 	status, err := r.Run(cmd)
 	if err != nil {

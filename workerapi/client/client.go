@@ -64,13 +64,13 @@ func (c *simpleClient) Close() error {
 	return nil
 }
 
-func (c *simpleClient) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
+func (c *simpleClient) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 	workerClient, err := c.dial()
 	if err != nil {
 		return runner.ProcessStatus{}, err
 	}
 
-	status, err := workerClient.Run(workerapi.DomainRunCommandToThrift(cmd))
+	status, err := workerClient.Run(workerapi.DomainRunCommandToThrift(cmd.(runner.Command)))
 	if err != nil {
 		return runner.ProcessStatus{}, err
 	}

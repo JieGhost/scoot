@@ -16,8 +16,8 @@ var nonzero = int32(12345)
 var emptystr = ""
 var nonemptystr = "abcdef"
 
-var cmdFromThrift = func(x interface{}) interface{} { return ThriftRunCommandToDomain(x.(*worker.RunCommand)) }
-var cmdToThrift = func(x interface{}) interface{} { return DomainRunCommandToThrift(x.(*runner.Command)) }
+var cmdFromThrift = func(x interface{}) interface{} { return *ThriftRunCommandToDomain(x.(*worker.RunCommand)) }
+var cmdToThrift = func(x interface{}) interface{} { return DomainRunCommandToThrift(x.(runner.Command)) }
 var rsFromThrift = func(x interface{}) interface{} { return ThriftRunStatusToDomain(x.(*worker.RunStatus)) }
 var rsToThrift = func(x interface{}) interface{} { return DomainRunStatusToThrift(x.(runner.ProcessStatus)) }
 var wsFromThrift = func(x interface{}) interface{} { return ThriftWorkerStatusToDomain(x.(*worker.WorkerStatus)) }
@@ -34,17 +34,17 @@ var tests = []struct {
 	{
 		0, cmdFromThrift, nil,
 		&worker.RunCommand{Argv: []string{}, Env: nil, SnapshotId: nil, TimeoutMs: nil},
-		&runner.Command{Argv: []string{}, EnvVars: map[string]string{}, Timeout: time.Duration(zero)},
+		runner.Command{Argv: []string{}, EnvVars: map[string]string{}, Timeout: time.Duration(zero)},
 	},
 	{
 		1, cmdFromThrift, cmdToThrift,
 		&worker.RunCommand{Argv: []string{}, Env: map[string]string{}, SnapshotId: &emptystr, TimeoutMs: &zero},
-		&runner.Command{Argv: []string{}, EnvVars: map[string]string{}, Timeout: time.Duration(zero)},
+		runner.Command{Argv: []string{}, EnvVars: map[string]string{}, Timeout: time.Duration(zero)},
 	},
 	{
 		2, cmdFromThrift, cmdToThrift,
 		&worker.RunCommand{Argv: someCmd, Env: someEnv, SnapshotId: &nonemptystr, TimeoutMs: &nonzero},
-		&runner.Command{Argv: someCmd, EnvVars: someEnv,
+		runner.Command{Argv: someCmd, EnvVars: someEnv,
 			Timeout: time.Duration(nonzero) * time.Millisecond, SnapshotId: nonemptystr},
 	},
 

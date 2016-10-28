@@ -57,7 +57,7 @@ func ThriftRunCommandToDomain(thrift *worker.RunCommand) *runner.Command {
 	return runner.NewCommand(argv, env, timeout, snapshotId)
 }
 
-func DomainRunCommandToThrift(domain *runner.Command) *worker.RunCommand {
+func DomainRunCommandToThrift(domain runner.Command) *worker.RunCommand {
 	thrift := worker.NewRunCommand()
 	timeoutMs := int32(domain.Timeout / time.Millisecond)
 	thrift.TimeoutMs = &timeoutMs

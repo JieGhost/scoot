@@ -48,7 +48,7 @@ type runInstance struct {
 	doneCh chan struct{}
 }
 
-func (r *simpleRunner) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
+func (r *simpleRunner) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	runId := runner.RunId(fmt.Sprintf("%d", r.nextRunId))
@@ -62,9 +62,9 @@ func (r *simpleRunner) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
 	r.runs[runId] = runner.PreparingStatus(runId)
 
 	// Run in a new goroutine
-	go r.run(cmd, runId, r.running.doneCh, r.runnerAvailableCh)
-	if cmd.Timeout > 0 { // Timeout if applicable
-		time.AfterFunc(cmd.Timeout, func() { r.updateStatus(runner.TimeoutStatus(runId)) })
+	go r.run(cmd, runId, r.running.doneCh)
+	if (cmd.GetTimeout().Nanoseconds()) > 0 { // Timeout if applicable
+		time.AfterFunc(cmd.GetTimeout(), func() { r.updateStatus(runner.TimeoutStatus(runId)) })
 	}
 	// TODO(dbentley): we return PREPARING now to defend against long-checkout
 	// But we could sleep short (50ms?), query status, and return that to capture the common, fast case
@@ -111,7 +111,7 @@ func (r *simpleRunner) updateStatus(newStatus runner.ProcessStatus) (runner.Proc
 
 	oldStatus, ok := r.runs[newStatus.RunId]
 	if !ok {
-		reportRunnerAvailable(r.runnerAvailableCh)
+		r.reportRunnerAvailable()
 		return runner.ProcessStatus{}, fmt.Errorf("cannot find run %v", newStatus.RunId)
 	}
 
@@ -130,9 +130,9 @@ func (r *simpleRunner) updateStatus(newStatus runner.ProcessStatus) (runner.Proc
 		// We are ending the running task.
 		// depend on the invariant that there is at most 1 run with !state.IsDone(),
 		// so if we're changing a Process from not Done to Done it must be running
-		log.Printf("local.simpleRunner: run done. %+v", newStatus)
+		//log.Printf("local.simpleRunner: run done. %+v", newStatus)
 		close(r.running.doneCh)
-		reportRunnerAvailable(r.runnerAvailableCh)
+		r.reportRunnerAvailable()
 		r.running = nil
 	}
 
@@ -141,12 +141,12 @@ func (r *simpleRunner) updateStatus(newStatus runner.ProcessStatus) (runner.Proc
 }
 
 // run cmd in the background, writing results to r as id, unless doneCh is closed
-func (r *simpleRunner) run(cmd *runner.Command, runId runner.RunId, doneCh chan struct{}, runnerAvailableCh chan struct{}) {
+func (r *simpleRunner) run(cmd runner.CommandI, runId runner.RunId, doneCh chan struct{}) {
 	log.Printf("local.simpleRunner.run running: ID: %v, cmd: %+v", runId, cmd)
 
 	checkout, err, checkoutDone := (snapshot.Checkout)(nil), (error)(nil), make(chan struct{})
 	go func() {
-		checkout, err = r.checkouter.Checkout(cmd.SnapshotId)
+		checkout, err = r.checkouter.Checkout(cmd.GetSnapshotId())
 		close(checkoutDone)
 	}()
 
@@ -183,12 +183,9 @@ func (r *simpleRunner) run(cmd *runner.Command, runId runner.RunId, doneCh chan 
 	}
 	defer stderr.Close()
 
-	p, err := r.exec.Exec(execer.Command{
-		Argv:   cmd.Argv,
-		Dir:    checkout.Path(),
-		Stdout: stdout,
-		Stderr: stderr,
-	})
+	execerCmd := r.exec.MakeExecerCommand(cmd, checkout.Path(), stdout, stderr)
+
+	p, err := r.exec.Exec(execerCmd)
 	if err != nil {
 		r.updateStatus(runner.ErrorStatus(runId, fmt.Errorf("could not exec: %v", err)))
 		return
@@ -216,12 +213,13 @@ func (r *simpleRunner) run(cmd *runner.Command, runId runner.RunId, doneCh chan 
 	default:
 		r.updateStatus(runner.ErrorStatus(runId, fmt.Errorf("unexpected exec state: %v", st.State)))
 	}
+
 }
 
-func reportRunnerAvailable(runnerAvailableCh chan struct{}) {
-	if runnerAvailableCh != nil {
+func (r *simpleRunner) reportRunnerAvailable() {
+	if r.runnerAvailableCh != nil {
 		go func() {
-			runnerAvailableCh <- struct{}{}
+			r.runnerAvailableCh <- struct{}{}
 		}()
 	}
 }

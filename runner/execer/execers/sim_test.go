@@ -25,11 +25,10 @@ func TestSimExec(t *testing.T) {
 func TestOutput(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	expectedStdout, expectedStderr := "foo\n", "bar\n"
-	cmd := execer.Command{
-		Argv:   []string{"stdout " + expectedStdout, "stderr " + expectedStderr, "complete 0"},
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}
+	cmd := ExecerCommandWithWaitGroup{}
+	cmd.Argv = []string{"stdout " + expectedStdout, "stderr " + expectedStderr, "complete 0"}
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	ex := NewSimExecer(nil)
 	p, err := ex.Exec(cmd)
@@ -54,7 +53,7 @@ func assertRun(ex execer.Execer, t *testing.T, expected execer.ProcessStatus, ar
 }
 
 func assertStart(ex execer.Execer, t *testing.T, argv ...string) execer.Process {
-	cmd := execer.Command{}
+	cmd := ExecerCommandWithWaitGroup{}
 	cmd.Argv = argv
 	p, err := ex.Exec(cmd)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/scootdev/scoot/runner"
 	"github.com/scootdev/scoot/runner/execer"
 )
 
@@ -15,8 +16,41 @@ func NewSimExecer(wait *sync.WaitGroup) execer.Execer {
 	return &simExecer{wait}
 }
 
+type ExecerCommandWithWaitGroup struct {
+	execer.Command
+	Wait *sync.WaitGroup
+}
+
+func (c ExecerCommandWithWaitGroup) String() string {
+	return c.String()
+}
+
+func (c ExecerCommandWithWaitGroup) GetArgv() []string {
+	return c.Argv
+}
+
+func (c ExecerCommandWithWaitGroup) GetStdout() io.Writer {
+	return c.Stdout
+}
+
+func (c ExecerCommandWithWaitGroup) GetStderr() io.Writer {
+	return c.Stderr
+}
+
 type simExecer struct {
 	wait *sync.WaitGroup
+}
+
+func (e *simExecer) MakeExecerCommand(runnerCommand runner.CommandI, dir string, stdout, stderr io.Writer) execer.CommandI {
+	execerCommand := ExecerCommandWithWaitGroup{}
+	execerCommand.Argv = runnerCommand.GetArgv()
+	if _, ok := runnerCommand.(runner.RunnerCommandWithWaitGroup); ok {
+		execerCommand.Wait = runnerCommand.(runner.RunnerCommandWithWaitGroup).Wait
+	}
+	execerCommand.Dir = dir
+	execerCommand.Stdout = stdout
+	execerCommand.Stderr = stderr
+	return execerCommand
 }
 
 // simExecer execs by simulating running argv.
@@ -32,12 +66,18 @@ type simExecer struct {
 //   put <message> in stdout in the response
 // stderr <message>
 //   put <message> in stderr in the response
-func (e *simExecer) Exec(command execer.Command) (execer.Process, error) {
-	steps, err := e.parse(command.Argv)
+func (e *simExecer) Exec(command execer.CommandI) (execer.Process, error) {
+	var wg *sync.WaitGroup = e.wait
+
+	if wgCmd, ok := command.(ExecerCommandWithWaitGroup); ok && wgCmd.Wait != nil {
+		wg = command.(ExecerCommandWithWaitGroup).Wait
+	}
+
+	steps, err := e.parse(command.GetArgv(), wg)
 	if err != nil {
 		return nil, err
 	}
-	r := &simProcess{stdout: command.Stdout, stderr: command.Stderr}
+	r := &simProcess{stdout: command.GetStdout(), stderr: command.GetStderr()}
 	r.done = sync.NewCond(&r.mu)
 	r.status.State = execer.RUNNING
 	go r.run(steps)
@@ -45,9 +85,9 @@ func (e *simExecer) Exec(command execer.Command) (execer.Process, error) {
 }
 
 // parse parses an argv into sim steps
-func (e *simExecer) parse(argv []string) (steps []simStep, err error) {
+func (e *simExecer) parse(argv []string, wg *sync.WaitGroup) (steps []simStep, err error) {
 	for _, arg := range argv {
-		s, err := e.parseArg(arg)
+		s, err := e.parseArg(arg, wg)
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +96,7 @@ func (e *simExecer) parse(argv []string) (steps []simStep, err error) {
 	return steps, nil
 }
 
-func (e *simExecer) parseArg(arg string) (simStep, error) {
+func (e *simExecer) parseArg(arg string, wg *sync.WaitGroup) (simStep, error) {
 	if strings.HasPrefix(arg, "#") {
 		return &noopStep{}, nil
 	}
@@ -73,7 +113,7 @@ func (e *simExecer) parseArg(arg string) (simStep, error) {
 		}
 		return &completeStep{i}, nil
 	case "pause":
-		return &pauseStep{e.wait}, nil
+		return &pauseStep{wg}, nil
 	case "sleep":
 		i, err := strconv.Atoi(rest)
 		if err != nil {

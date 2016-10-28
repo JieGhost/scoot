@@ -2,7 +2,6 @@ package local
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 
 	"github.com/scootdev/scoot/runner"
@@ -35,7 +34,7 @@ const UnknownRunIdMsg = "Unknown run id."
 // The request queue entries are commandAndId structs
 type commandAndId struct {
 	id  runner.RunId
-	cmd *runner.Command
+	cmd runner.CommandI
 }
 
 // requestResponse structs are returned in the Run() and Status() response channels
@@ -60,7 +59,7 @@ type QueueingRunner struct {
 
 	notifyRunnerAvailCh chan struct{} // the runner will use this channel to signal it is available
 
-	runRequestsCh chan *runner.Command // channel for synchronizing calls to Run()
+	runRequestsCh chan runner.CommandI // channel for synchronizing calls to Run()
 	runResponseCh chan requestResponse
 
 	statusRequestsCh chan runner.RunId    // channel for synchronizing status requests
@@ -85,7 +84,7 @@ func NewQueuingRunner(context context.Context,
 		nextRunId:            0,
 		runnerIsAvailable:    true,
 		notifyRunnerAvailCh:  runnerAvailableCh,
-		runRequestsCh:        make(chan *runner.Command),
+		runRequestsCh:        make(chan runner.CommandI),
 		runResponseCh:        make(chan requestResponse),
 		statusRequestsCh:     make(chan runner.RunId),
 		statusResponseCh:     make(chan requestResponse),
@@ -103,8 +102,7 @@ func NewQueuingRunner(context context.Context,
 // on the queueing runner's processRequests channel.  When the request has been
 // queued the request's runid, its queued status and any error will be returned
 // via the request's callback channel
-func (qr *QueueingRunner) Run(cmd *runner.Command) (runner.ProcessStatus, error) {
-	log.Printf("local.queueingRunner: in qr.Run() args:%v\n", cmd.Argv)
+func (qr *QueueingRunner) Run(cmd runner.CommandI) (runner.ProcessStatus, error) {
 
 	// put the request on the process requests channel
 	qr.runRequestsCh <- cmd
@@ -148,7 +146,7 @@ func (qr *QueueingRunner) eventLoop() {
 
 // If there is room on the queue, assign a new runid and add the request to the queue.
 // Otherwise return queue full error message
-func (qr *QueueingRunner) addRequestToQueue(cmd *runner.Command) requestResponse {
+func (qr *QueueingRunner) addRequestToQueue(cmd runner.CommandI) requestResponse {
 
 	if len(qr.runQueue) == qr.maxQueueLen {
 		// the queue is full

@@ -2,11 +2,19 @@ package execer
 
 import (
 	"io"
+
+	"github.com/scootdev/scoot/runner"
 )
 
 // Execer lets you run one Unix command. It differs from Runner in that it does not
 // know about Snapshots or Scoot. It's just a way to run a Unix process (or fake it).
 // It's at the level of os/exec, not exec-as-a-service.
+
+type CommandI interface {
+	GetArgv() []string
+	GetStdout() io.Writer
+	GetStderr() io.Writer
+}
 
 type Command struct {
 	Argv []string
@@ -15,6 +23,18 @@ type Command struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	// TODO(dbentley): environment variables?
+}
+
+func (c Command) GetArgv() []string {
+	return c.Argv
+}
+
+func (c Command) GetStdout() io.Writer {
+	return c.Stdout
+}
+
+func (c Command) GetStderr() io.Writer {
+	return c.Stderr
 }
 
 type ProcessState int
@@ -32,7 +52,8 @@ func (s ProcessState) IsDone() bool {
 
 type Execer interface {
 	// Starts process to exec command in a new goroutine.
-	Exec(command Command) (Process, error)
+	Exec(command CommandI) (Process, error)
+	MakeExecerCommand(runnerCommand runner.CommandI, dir string, stdout, stderr io.Writer) CommandI
 }
 
 type Process interface {
